@@ -765,33 +765,53 @@ function startModalScanner() {
     const container = document.getElementById('modal-scanner-container');
     if(container) container.classList.remove('hidden');
     
-    modalHtml5QrCode = new Html5Qrcode("modal-reader");
-    const config = { fps: 15, qrbox: { width: 250, height: 100 } };
-
-    Html5Qrcode.getCameras().then(devices => {
-        if (devices && devices.length) {
-            let cameraId = devices.find(d => d.label.toLowerCase().includes('back'))?.id || devices[devices.length - 1].id;
-            modalHtml5QrCode.start(
-                cameraId,
-                config,
-                (decodedText) => {
-                    const input = document.getElementById('add-barcode-input');
-                    if (input) input.value = decodedText.trim();
-                    stopModalScanner();
-                },
-                (errorMessage) => { }
-            ).catch(err => {
-                alert("Error opening camera: " + err);
-                stopModalScanner();
-            });
-        } else {
-            alert("No camera found.");
-            stopModalScanner();
+    // Low performance fix: Delay camera start until container is visible
+    setTimeout(() => {
+        if (modalHtml5QrCode) {
+            modalHtml5QrCode.stop().catch(() => {});
         }
-    }).catch(err => {
-        alert("Camera access blocked. Please ensure you are on HTTPS.");
-        stopModalScanner();
-    });
+        
+        modalHtml5QrCode = new Html5Qrcode("modal-reader");
+        const config = { 
+            fps: 15, 
+            qrbox: (viewWidth, viewHeight) => {
+                const width = viewWidth * 0.8;
+                const height = viewHeight * 0.4;
+                return { width, height };
+            },
+            aspectRatio: 1.6
+        };
+
+        Html5Qrcode.getCameras().then(devices => {
+            if (devices && devices.length) {
+                let cameraId = devices.find(d => d.label.toLowerCase().includes('back'))?.id || devices[devices.length - 1].id;
+                modalHtml5QrCode.start(
+                    cameraId,
+                    config,
+                    (decodedText) => {
+                        const input = document.getElementById('add-barcode-input');
+                        if (input) {
+                            input.value = decodedText.trim();
+                            // Optional: haptic feedback alternative
+                            input.classList.add('bg-emerald-50');
+                            setTimeout(() => input.classList.remove('bg-emerald-50'), 400);
+                        }
+                        stopModalScanner();
+                    },
+                    (errorMessage) => { }
+                ).catch(err => {
+                    console.error("Camera fail:", err);
+                    stopModalScanner();
+                });
+            } else {
+                alert("ไม่พบกล้องในอุปกรณ์นี้");
+                stopModalScanner();
+            }
+        }).catch(err => {
+            alert("ไม่สามารถเข้าถึงกล้องได้: " + err);
+            stopModalScanner();
+        });
+    }, 300);
 }
 
 function stopModalScanner() {
