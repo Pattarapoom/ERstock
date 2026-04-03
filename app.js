@@ -585,7 +585,7 @@ function resetModal() {
     document.getElementById('image-preview').classList.add('hidden');
     document.getElementById('image-placeholder').classList.remove('hidden');
     document.getElementById('modal-title').innerText = "ลงทะเบียนเวชภัณฑ์ใหม่";
-    document.getElementById('modal-submit-btn').innerText = "สร้างรายการ 🔥";
+    document.getElementById('modal-submit-btn').innerText = "สร้างรายการ";
 }
 
 // --- Scanner Integration functions ---
