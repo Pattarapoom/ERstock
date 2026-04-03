@@ -19,6 +19,113 @@ const db = firebase.database();
 // Global State
 let erItems = [];
 let erTransactions = [];
+let currentItemImage = null;
+
+function previewAndProcessImage(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.getElementById('image-canvas');
+                const ctx = canvas.getContext('2d');
+                let width = img.width;
+                let height = img.height;
+                const max_size = 200;
+                if (width > height) {
+                    if (width > max_size) {
+                        height *= max_size / width;
+                        width = max_size;
+                    }
+                } else {
+                    if (height > max_size) {
+                        width *= max_size / height;
+                        height = max_size;
+                    }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+                currentItemImage = canvas.toDataURL('image/jpeg', 0.7);
+                const preview = document.getElementById('image-preview');
+                const placeholder = document.getElementById('image-placeholder');
+                preview.src = currentItemImage;
+                preview.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+// Authentication Data
+const admins = {
+    'admin1': 'Stock#1',
+    'admin2': 'Stock#2',
+    'admin3': 'Stock#3',
+    'admin4': 'Stock#4',
+    'admin5': 'Stock#5'
+};
+
+function handleLogin() {
+    const user = document.getElementById('login-user').value;
+    const pass = document.getElementById('login-pass').value;
+    const error = document.getElementById('login-error');
+    
+    if (admins[user] && admins[user] === pass) {
+        localStorage.setItem('er_logged_in', 'true');
+        localStorage.setItem('er_user', user);
+        toggleModal('login-screen', false);
+        checkSession();
+        
+        // Redirect to the page they wanted if possible
+        const target = localStorage.getItem('login_redirect') || 'dashboard';
+        showPage(target);
+        localStorage.removeItem('login_redirect');
+    } else {
+        error.classList.remove('opacity-0');
+        setTimeout(() => error.classList.add('opacity-0'), 3000);
+    }
+}
+
+function logout() {
+    localStorage.removeItem('er_logged_in');
+    localStorage.removeItem('er_user');
+    location.reload();
+}
+
+function checkSession() {
+    const isLoggedIn = (localStorage.getItem('er_logged_in') === 'true');
+    const user = localStorage.getItem('er_user');
+    const authElements = document.querySelectorAll('.auth-only');
+    
+    authElements.forEach(el => {
+        el.classList.toggle('hidden', !isLoggedIn);
+    });
+
+    if (isLoggedIn && user) {
+        // Update tags
+        const nameTag = document.getElementById('user-name-tag');
+        const avatarTag = document.getElementById('user-avatar-tag');
+        const mobileTag = document.getElementById('mobile-user-tag');
+        
+        if (nameTag) nameTag.innerText = user.toUpperCase();
+        if (avatarTag) avatarTag.innerText = user[0].toUpperCase() + user.slice(-1);
+        if (mobileTag) mobileTag.innerText = user[0].toUpperCase() + user.slice(-1);
+    }
+
+    // Update UI elements based on login
+    const logoutBtn = document.querySelector('button.bg-rose-500\\/10');
+    if(logoutBtn) {
+        logoutBtn.onclick = logout;
+        const textSpan = logoutBtn.querySelector('span');
+        if (textSpan) textSpan.innerText = isLoggedIn ? 'ออกจากระบบ' : 'Staff Login';
+        if(!isLoggedIn) {
+            logoutBtn.onclick = () => toggleModal('login-screen', true);
+        }
+    }
+}
 
 function initDatabase() {
 // Sync Items
@@ -65,8 +172,9 @@ function addTransaction(type, item, qty) {
 
 // --- UI Rendering ---
 
-function getStatusBadge(qty, name) {
-    if (qty <= 20) {
+function getStatusBadge(qty, minStock) {
+    const limit = minStock || 20;
+    if (qty <= limit) {
         return `<span class="px-2 py-1 bg-medical_warn/10 text-medical_warn text-[10px] font-black rounded-lg border border-medical_warn/20 badge-pulse">LOW STOCK</span>`;
     }
     return `<span class="px-2 py-1 bg-medical_green/10 text-medical_green text-[10px] font-black rounded-lg border border-medical_green/20">IN STOCK</span>`;
@@ -114,16 +222,20 @@ function renderInventory() {
 
     items.forEach(item => {
         const icon = item.category === 'Medicine' ? 'pill' : 'droplet';
-        const statusHTML = getStatusBadge(item.qty, item.name);
+        const imageHTML = item.imageData 
+            ? `<img src="${item.imageData}" class="w-10 h-10 rounded-xl object-cover border border-slate-200">`
+            : `<div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center group-hover:border-blue-500/50 transition">
+                <i data-lucide="${icon}" class="w-5 h-5 text-slate-500 group-hover:text-blue-500"></i>
+               </div>`;
+
+        const statusHTML = getStatusBadge(item.qty, item.minStock);
         
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-50 transition-colors group';
         tr.innerHTML = `
             <td>
                 <div class="flex items-center gap-4">
-                    <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center group-hover:border-blue-500/50 transition">
-                        <i data-lucide="${icon}" class="w-5 h-5 text-slate-500 group-hover:text-blue-500"></i>
-                    </div>
+                    ${imageHTML}
                     <div>
                         <p class="font-bold text-slate-800">${item.name}</p>
                         <p class="text-[10px] text-slate-500 font-bold tracking-tight">${item.barcode}</p>
@@ -197,7 +309,12 @@ function renderDashboard() {
 
         sortedItems.forEach(item => {
             const icon = item.category === 'Medicine' ? 'pill' : 'droplet';
-            const isLowStock = item.qty <= 20;
+            const imgHTML = item.imageData 
+                ? `<img src="${item.imageData}" class="w-8 h-8 rounded-lg object-cover">`
+                : `<div class="w-8 h-8 rounded-lg bg-blue-600/10 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4 text-blue-500"></i></div>`;
+
+            const limit = item.minStock || 20;
+            const isLowStock = item.qty <= limit;
             const expDate = item.expiryDate && item.expiryDate !== '-' ? 
                 new Date(item.expiryDate).toLocaleDateString('th-TH') : '-';
             
@@ -211,7 +328,7 @@ function renderDashboard() {
                 <tr class="hover:bg-slate-50 group transition-colors border-b border-slate-100 last:border-0">
                     <td class="py-4 px-4">
                         <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-lg bg-blue-600/10 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4 text-blue-500"></i></div>
+                            ${imgHTML}
                             <div>
                                 <p class="font-bold text-slate-800">${item.name}</p>
                                 ${qtyBadge}
@@ -347,45 +464,42 @@ function resetDatabase() {
 
 // Replace the Add Item Modal handler
 function createNewItem() {
-    const inputs = document.querySelectorAll('#add-item-modal .input-field');
-    const name = inputs[0].value;
-    const categoryInput = document.getElementById('add-category-input');
-    const unitInput = document.getElementById('add-unit-input');
-    const category = categoryInput ? categoryInput.value : inputs[1].value;
-    const unit = unitInput ? unitInput.value : inputs[2].value;
-    const barcodeInput = document.getElementById('add-barcode-input');
-    const barcode = barcodeInput ? barcodeInput.value : '';
+    const name = document.getElementById('add-name-input').value;
+    const category = document.getElementById('add-category-input').value;
+    const unit = document.getElementById('add-unit-input').value;
+    const barcode = document.getElementById('add-barcode-input').value;
+    const location = document.getElementById('add-location-input').value;
+    const qty = parseInt(document.getElementById('add-qty-input').value) || 0;
+    const minStock = parseInt(document.getElementById('add-min-input').value) || 20;
+    const maxStock = parseInt(document.getElementById('add-max-input').value) || 1000;
+    const receivedDate = document.getElementById('add-received-input').value;
+    const expiryDate = document.getElementById('add-expiry-input').value;
     
     if(!name || !unit) {
-        alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+        alert("กรุณากรอกชื่อเวชภัณฑ์และหน่วยนับ");
         return;
     }
     
     const newItem = {
         name,
-        category,
-        qty: 0,
-        unit,
-        barcode: barcode || Date.now().toString().slice(-8), // Generate if empty
-        location: 'รอจัดการ',
+        category: category || 'ทั่วไป',
+        qty, minStock, maxStock, unit,
+        imageData: currentItemImage,
+        barcode: barcode || Date.now().toString().slice(-8),
+        location: location || 'ไม่ได้ระบุ',
         batch: '-',
-        expiryDate: '-',
+        receivedDate: receivedDate || '-',
+        expiryDate: expiryDate || '-',
         timestamp: firebase.database.ServerValue.TIMESTAMP
     };
     
     db.ref("items").push(newItem);
-    
     toggleModal('add-item-modal', false);
     
-    // Clear inputs
-    inputs[0].value = '';
-    if(categoryInput) categoryInput.value = '';
-    if(unitInput) unitInput.value = '';
-    if(barcodeInput) barcodeInput.value = '';
-    
-    renderInventory();
-    renderDashboard();
-    updateDatalists();
+    // Reset inputs
+    currentItemImage = null;
+    document.getElementById('image-preview').classList.add('hidden');
+    document.getElementById('image-placeholder').classList.remove('hidden');
 }
 
 // --- Scanner Integration functions ---
@@ -451,6 +565,7 @@ function processScanAction(type) {
 // Override existing HTML button actions
 document.addEventListener('DOMContentLoaded', () => {
     initDatabase();
+    checkSession();
     
     // Bind Add Item Button
     const createBtn = document.querySelector('#add-item-modal button.bg-blue-600');
@@ -484,6 +599,16 @@ updateThaiDate();
 
 // Router
 function showPage(pageId) {
+    const isLoggedIn = (localStorage.getItem('er_logged_in') === 'true');
+    const publicPages = ['dashboard'];
+    
+    // Protection: If not public and not logged in, show login modal
+    if (!publicPages.includes(pageId) && !isLoggedIn) {
+        localStorage.setItem('login_redirect', pageId);
+        toggleModal('login-screen', true);
+        return;
+    }
+
     const pages = ['dashboard', 'inventory', 'scanner', 'settings', 'transactions'];
     pages.forEach(p => {
         const el = document.getElementById('page-' + p);
@@ -531,8 +656,16 @@ function showPage(pageId) {
 
 function toggleModal(modalId, show) {
     const modal = document.getElementById(modalId);
+    if (!modal) return;
     if (show) {
         modal.classList.remove('hidden');
+        if (modalId === 'add-item-modal') {
+            const dateInput = document.getElementById('add-receiving-input') || document.getElementById('add-received-input');
+            if (dateInput) {
+                const today = new Date().toISOString().split('T')[0];
+                dateInput.value = today;
+            }
+        }
     } else {
         modal.classList.add('hidden');
     }
@@ -704,3 +837,60 @@ function updateDatalists() {
         });
     }
 }
+
+function exportToPDF() {
+    const items = getItems();
+    const dateStr = new Date().toLocaleDateString('th-TH', { 
+        year: 'numeric', month: 'long', day: 'numeric', 
+        hour: '2-digit', minute: '2-digit' 
+    });
+    
+    // Create a temporary container for PDF content
+    const element = document.createElement('div');
+    element.className = "p-10 bg-white font-sans text-slate-800";
+    element.innerHTML = `
+        <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #3b82f6; padding-bottom: 20px;">
+            <h1 style="font-size: 24px; font-weight: bold; color: #1e293b; margin-bottom: 5px;">รายงานสรุปคลังเวชภัณฑ์ (ER Stock Report)</h1>
+            <p style="font-size: 14px; color: #64748b;">หน่วยงานห้องฉุกเฉิน (Emergency Room Unit)</p>
+            <p style="font-size: 12px; color: #94a3b8; margin-top: 10px;">ข้อมูล ณ วันที่: ${dateStr}</p>
+        </div>
+        
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+            <thead>
+                <tr style="background-color: #f8fafc;">
+                    <th style="border: 1px solid #e2e8f0; padding: 12px; text-align: left; font-size: 11px;">รายการ</th>
+                    <th style="border: 1px solid #e2e8f0; padding: 12px; text-align: right; font-size: 11px;">คงเหลือ</th>
+                    <th style="border: 1px solid #e2e8f0; padding: 12px; text-align: center; font-size: 11px;">หน่วย</th>
+                    <th style="border: 1px solid #e2e8f0; padding: 12px; text-align: center; font-size: 11px;">หมดอายุ</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${items.map(item => `
+                    <tr>
+                        <td style="border: 1px solid #e2e8f0; padding: 8px; font-size: 10px; font-weight: bold;">${item.name}</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 8px; text-align: right; font-size: 11px; font-weight: 800; color: ${item.qty <= (item.minStock || 20) ? '#e11d48' : '#1e293b'}">${item.qty}</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 8px; text-align: center; font-size: 10px;">${item.unit}</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 8px; text-align: center; font-size: 10px; color: #64748b;">${item.expiryDate || '-'}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+
+    const opt = {
+        margin: 0.5,
+        filename: `ER_Stock_Report_${new Date().toISOString().split('T')[0]}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+    };
+    html2pdf().set(opt).from(element).save();
+}
+
+function updateThaiDate() {
+    const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+    const today = new Date().toLocaleDateString('th-TH', options);
+    const statusDate = document.getElementById('current-date-th');
+    if (statusDate) statusDate.innerText = today;
+}
+updateThaiDate();
