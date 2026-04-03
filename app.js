@@ -109,10 +109,20 @@ function checkSession() {
         const nameTag = document.getElementById('user-name-tag');
         const avatarTag = document.getElementById('user-avatar-tag');
         const mobileTag = document.getElementById('mobile-user-tag');
+        const mobileLoginBtn = document.getElementById('mobile-login-btn');
         
         if (nameTag) nameTag.innerText = user.toUpperCase();
         if (avatarTag) avatarTag.innerText = user[0].toUpperCase() + user.slice(-1);
-        if (mobileTag) mobileTag.innerText = user[0].toUpperCase() + user.slice(-1);
+        if (mobileTag) {
+            mobileTag.innerText = user[0].toUpperCase() + user.slice(-1);
+            mobileTag.classList.remove('hidden');
+        }
+        if (mobileLoginBtn) mobileLoginBtn.classList.add('hidden');
+    } else {
+        const mobileLoginBtn = document.getElementById('mobile-login-btn');
+        if (mobileLoginBtn) mobileLoginBtn.classList.remove('hidden');
+        const mobileTag = document.getElementById('mobile-user-tag');
+        if (mobileTag) mobileTag.classList.add('hidden');
     }
 
     // Update UI elements based on login
