@@ -2,14 +2,14 @@
 
 // Firebase Configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCVMIQNA9TnNxqymzyuHSeZ-E4zLbx7WVs",
-  authDomain: "er-stock-37346.firebaseapp.com",
-  databaseURL: "https://er-stock-37346-default-rtdb.asia-southeast1.firebasedatabase.app/",
-  projectId: "er-stock-37346",
-  storageBucket: "er-stock-37346.firebasestorage.app",
-  messagingSenderId: "442972982745",
-  appId: "1:442972982745:web:b7d7e8ebdc9e7eef151dc8",
-  measurementId: "G-34XVE0N8Z0"
+    apiKey: "AIzaSyCVMIQNA9TnNxqymzyuHSeZ-E4zLbx7WVs",
+    authDomain: "er-stock-37346.firebaseapp.com",
+    databaseURL: "https://er-stock-37346-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    projectId: "er-stock-37346",
+    storageBucket: "er-stock-37346.firebasestorage.app",
+    messagingSenderId: "442972982745",
+    appId: "1:442972982745:web:b7d7e8ebdc9e7eef151dc8",
+    measurementId: "G-34XVE0N8Z0"
 };
 
 // Initialize Firebase
@@ -20,13 +20,14 @@ const db = firebase.database();
 let erItems = [];
 let erTransactions = [];
 let currentItemImage = null;
+let editingItemId = null; // Track if we are editing or creating
 
 function previewAndProcessImage(input) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
             const img = new Image();
-            img.onload = function() {
+            img.onload = function () {
                 const canvas = document.getElementById('image-canvas');
                 const ctx = canvas.getContext('2d');
                 let width = img.width;
@@ -72,13 +73,13 @@ function handleLogin() {
     const user = document.getElementById('login-user').value;
     const pass = document.getElementById('login-pass').value;
     const error = document.getElementById('login-error');
-    
+
     if (admins[user] && admins[user] === pass) {
         localStorage.setItem('er_logged_in', 'true');
         localStorage.setItem('er_user', user);
         toggleModal('login-screen', false);
         checkSession();
-        
+
         // Redirect to the page they wanted if possible
         const target = localStorage.getItem('login_redirect') || 'dashboard';
         showPage(target);
@@ -99,7 +100,7 @@ function checkSession() {
     const isLoggedIn = (localStorage.getItem('er_logged_in') === 'true');
     const user = localStorage.getItem('er_user');
     const authElements = document.querySelectorAll('.auth-only');
-    
+
     authElements.forEach(el => {
         el.classList.toggle('hidden', !isLoggedIn);
     });
@@ -110,7 +111,7 @@ function checkSession() {
         const avatarTag = document.getElementById('user-avatar-tag');
         const mobileTag = document.getElementById('mobile-user-tag');
         const mobileLoginBtn = document.getElementById('mobile-login-btn');
-        
+
         if (nameTag) nameTag.innerText = user.toUpperCase();
         if (avatarTag) avatarTag.innerText = user[0].toUpperCase() + user.slice(-1);
         if (mobileTag) {
@@ -127,37 +128,37 @@ function checkSession() {
 
     // Update UI elements based on login
     const logoutBtn = document.querySelector('button.bg-rose-500\\/10');
-    if(logoutBtn) {
+    if (logoutBtn) {
         logoutBtn.onclick = logout;
         const textSpan = logoutBtn.querySelector('span');
         if (textSpan) textSpan.innerText = isLoggedIn ? 'ออกจากระบบ' : 'Staff Login';
-        if(!isLoggedIn) {
+        if (!isLoggedIn) {
             logoutBtn.onclick = () => toggleModal('login-screen', true);
         }
     }
 }
 
 function initDatabase() {
-// Sync Items
-db.ref("items").on("value", (snapshot) => {
-    erItems = [];
-    snapshot.forEach((childSnapshot) => {
-        erItems.push({ id: childSnapshot.key, ...childSnapshot.val() });
+    // Sync Items
+    db.ref("items").on("value", (snapshot) => {
+        erItems = [];
+        snapshot.forEach((childSnapshot) => {
+            erItems.push({ id: childSnapshot.key, ...childSnapshot.val() });
+        });
+        renderDashboard();
+        renderInventory();
+        updateDatalists();
     });
-    renderDashboard();
-    renderInventory();
-    updateDatalists();
-});
 
-// Sync Transactions (Limit to last 50)
-db.ref("transactions").orderByChild("timestamp").limitToLast(50).on("value", (snapshot) => {
-    erTransactions = [];
-    snapshot.forEach((childSnapshot) => {
-        erTransactions.unshift({ id: childSnapshot.key, ...childSnapshot.val() });
+    // Sync Transactions (Limit to last 50)
+    db.ref("transactions").orderByChild("timestamp").limitToLast(50).on("value", (snapshot) => {
+        erTransactions = [];
+        snapshot.forEach((childSnapshot) => {
+            erTransactions.unshift({ id: childSnapshot.key, ...childSnapshot.val() });
+        });
+        renderDashboard();
+        renderTransactions();
     });
-    renderDashboard();
-    renderTransactions();
-});
 }
 
 function getItems() {
@@ -194,16 +195,16 @@ let currentInventoryFilter = 'All Items';
 
 function setInventoryFilter(category, btnElement) {
     currentInventoryFilter = category;
-    
+
     const btns = document.querySelectorAll('.filter-btn');
     btns.forEach(b => {
         b.className = "filter-btn px-5 py-2 bg-white rounded-full text-xs font-bold text-slate-500 border border-slate-200 hover:text-slate-700 transition";
     });
-    
-    if(btnElement) {
+
+    if (btnElement) {
         btnElement.className = "filter-btn px-5 py-2 bg-blue-600 rounded-full text-xs font-bold text-white shadow-lg border border-blue-500 transition";
     }
-    
+
     renderInventory();
 }
 
@@ -211,39 +212,40 @@ function renderInventory() {
     let items = getItems();
     const tbody = document.querySelector('#page-inventory tbody');
     if (!tbody) return;
-    
+
     tbody.innerHTML = '';
-    
+
     const searchInput = document.getElementById('inventory-search');
     const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
-    
+
     if (currentInventoryFilter !== 'All Items') {
         items = items.filter(item => item.category === currentInventoryFilter);
     }
-    
+
     if (searchTerm) {
         items = items.filter(item => item.name.toLowerCase().includes(searchTerm) || item.barcode.includes(searchTerm));
     }
-    
+
     if (items.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-slate-500 font-bold">ไม่พบรายการที่ค้นหา</td></tr>`;
         return;
     }
 
     items.forEach(item => {
-        const icon = item.category === 'Medicine' ? 'pill' : 'droplet';
-        const imageHTML = item.imageData 
+        const icon = item.category === 'ยา' ? 'pill' : (item.category === 'อุปกรณ์' ? 'wrench' : (item.category === 'วัสดุสิ้นเปลือง' ? 'droplet' : 'package'));
+        const imageHTML = item.imageData
             ? `<img src="${item.imageData}" class="w-10 h-10 rounded-xl object-cover border border-slate-200">`
             : `<div class="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center group-hover:border-blue-500/50 transition">
                 <i data-lucide="${icon}" class="w-5 h-5 text-slate-500 group-hover:text-blue-500"></i>
                </div>`;
 
         const statusHTML = getStatusBadge(item.qty, item.minStock);
-        
+
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-slate-50 transition-colors group';
+        tr.className = 'hover:bg-slate-50 transition-colors group cursor-pointer';
+        tr.onclick = () => openEditModal(item.id);
         tr.innerHTML = `
-            <td>
+            <td class="pl-4">
                 <div class="flex items-center gap-4">
                     ${imageHTML}
                     <div>
@@ -264,18 +266,18 @@ function renderInventory() {
         `;
         tbody.appendChild(tr);
     });
-    
+
     lucide.createIcons();
 }
 
 function renderDashboard() {
     const items = getItems();
     const transactions = getTransactions();
-    
+
     // Update Stats
     const totalItems = items.reduce((sum, item) => sum + item.qty, 0);
     const lowStockCount = items.filter(item => item.qty <= 20).length;
-    
+
     // Check for expiring items (within 30 days)
     const today = new Date();
     const thirtyDaysFromNow = new Date();
@@ -307,7 +309,7 @@ function renderDashboard() {
         let sortedItems = [...items].sort((a, b) => {
             if (a.qty <= 20 && b.qty > 20) return -1;
             if (b.qty <= 20 && a.qty > 20) return 1;
-            
+
             let textA = a.expiryDate || '9999-99-99';
             let textB = b.expiryDate || '9999-99-99';
             return textA.localeCompare(textB);
@@ -318,25 +320,27 @@ function renderDashboard() {
         }
 
         sortedItems.forEach(item => {
-            const icon = item.category === 'Medicine' ? 'pill' : 'droplet';
-            const imgHTML = item.imageData 
+            const icon = item.category === 'ยา' ? 'pill' : (item.category === 'อุปกรณ์' ? 'wrench' : (item.category === 'วัสดุสิ้นเปลือง' ? 'droplet' : 'package'));
+            const imgHTML = item.imageData
                 ? `<img src="${item.imageData}" class="w-8 h-8 rounded-lg object-cover">`
                 : `<div class="w-8 h-8 rounded-lg bg-blue-600/10 flex items-center justify-center"><i data-lucide="${icon}" class="w-4 h-4 text-blue-500"></i></div>`;
 
             const limit = item.minStock || 20;
             const isLowStock = item.qty <= limit;
-            const expDate = item.expiryDate && item.expiryDate !== '-' ? 
+            const expDate = item.expiryDate && item.expiryDate !== '-' ?
                 new Date(item.expiryDate).toLocaleDateString('th-TH') : '-';
-            
-            const expBadgeClass = isLowStock 
-                ? "bg-medical_red/10 text-medical_red border-medical_red/20" 
+
+            const expBadgeClass = isLowStock
+                ? "bg-medical_red/10 text-medical_red border-medical_red/20"
                 : "bg-medical_warn/10 text-medical_warn border-medical_warn/20";
 
             let qtyBadge = `<p class="text-[10px] ${isLowStock ? 'text-medical_red' : 'text-slate-500'} font-bold">คงเหลือ: ${item.qty} ${item.unit}</p>`;
 
-            fifoTbody.innerHTML += `
-                <tr class="hover:bg-slate-50 group transition-colors border-b border-slate-100 last:border-0">
-                    <td class="py-4 px-4">
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-50 group transition-colors border-b border-slate-100 last:border-0 cursor-pointer';
+            tr.onclick = () => openEditModal(item.id);
+            tr.innerHTML = `
+                <td class="py-4 px-4">
                         <div class="flex items-center gap-3">
                             ${imgHTML}
                             <div>
@@ -360,7 +364,7 @@ function renderDashboard() {
     if (logContainer) {
         logContainer.innerHTML = '';
         const recent = transactions.slice(0, 5); // top 5
-        if(recent.length === 0) {
+        if (recent.length === 0) {
             logContainer.innerHTML = '<p class="text-sm text-slate-500 italic">ไม่มีประวัติรายการ</p>';
         }
         recent.forEach(t => {
@@ -368,7 +372,7 @@ function renderDashboard() {
             const colorClass = isOut ? 'bg-medical_red ring-medical_red/20' : 'bg-emerald-500 ring-emerald-500/20';
             const typeText = isOut ? 'เบิกออก' : 'รับเข้า';
             const sign = isOut ? '-' : '+';
-            
+
             const itemHTML = `
                 <div class="relative">
                     <div class="absolute -left-[30px] top-1 w-2 h-2 rounded-full ${colorClass.split(' ')[0]} ring-4 ${colorClass.split(' ')[1]}"></div>
@@ -384,9 +388,9 @@ function renderDashboard() {
 function renderTransactions() {
     const page = document.getElementById('page-transactions');
     if (!page) return;
-    
+
     const transactions = getTransactions();
-    
+
     let html = `
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-6 rounded-[2rem] border border-slate-200 mb-8">
             <div>
@@ -397,7 +401,7 @@ function renderTransactions() {
         </div>
         <div class="space-y-4">
     `;
-    
+
     if (transactions.length === 0) {
         html += `<p class="text-center text-slate-500 py-10">ไม่มีประวัติการทำรายการ</p>`;
     }
@@ -407,7 +411,7 @@ function renderTransactions() {
         const color = isOut ? 'text-medical_red bg-medical_red/10' : 'text-emerald-500 bg-emerald-500/10';
         const icon = isOut ? 'arrow-up-right' : 'arrow-down-left';
         const sign = isOut ? '-' : '+';
-        
+
         html += `
              <div class="glass-card p-4 rounded-2xl flex items-center gap-4 hover:bg-slate-50 transition-colors">
                 <div class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${color}">
@@ -426,7 +430,7 @@ function renderTransactions() {
              </div>
         `;
     });
-    
+
     html += `</div>`;
     page.innerHTML = html;
     lucide.createIcons();
@@ -436,16 +440,16 @@ function updateStock(id, diff) {
     const item = erItems.find(i => i.id === id);
     if (item) {
         const newQty = item.qty + diff;
-        
+
         if (newQty < 0) {
             alert("ไม่สามารถตัดสต็อกได้ สินค้าคงเหลือไม่เพียงพอ!");
             return;
         }
-        
+
         db.ref("items/" + id).update({
             qty: newQty
         });
-        
+
         // Record Transaction
         const type = diff < 0 ? 'OUT' : 'IN';
         addTransaction(type, item, Math.abs(diff));
@@ -453,19 +457,19 @@ function updateStock(id, diff) {
 }
 
 function deleteItem(id) {
-    if(confirm("แน่ใจหรือไม่ที่จะลบรายการนี้?")) {
+    if (confirm("แน่ใจหรือไม่ที่จะลบรายการนี้?")) {
         db.ref("items/" + id).remove();
     }
 }
 
 function clearTransactions() {
-    if(confirm("ยืนยันการล้างประวัติทั้งหมด? (ข้อมูลบน Realtime DB จะถูกลบถาวร)")) {
+    if (confirm("ยืนยันการล้างประวัติทั้งหมด? (ข้อมูลบน Realtime DB จะถูกลบถาวร)")) {
         db.ref("transactions").remove();
     }
 }
 
 function resetDatabase() {
-    if(confirm("⚠️ คำเตือน: คุณกำลังจะลบข้อมูลทั้งหมด (รายการเวชภัณฑ์และประวัติการเบิกจ่าย) ข้อมูลจะถูกลบถาวรจาก Realtime DB ยืนยันหรือไม่?")) {
+    if (confirm("⚠️ คำเตือน: คุณกำลังจะลบข้อมูลทั้งหมด (รายการเวชภัณฑ์และประวัติการเบิกจ่าย) ข้อมูลจะถูกลบถาวรจาก Realtime DB ยืนยันหรือไม่?")) {
         db.ref("items").remove();
         db.ref("transactions").remove();
         alert("✅ รีเซ็ตฐานข้อมูลเรียบร้อยแล้ว");
@@ -473,7 +477,7 @@ function resetDatabase() {
 }
 
 // Replace the Add Item Modal handler
-function createNewItem() {
+function saveItem() {
     const name = document.getElementById('add-name-input').value;
     const category = document.getElementById('add-category-input').value;
     const unit = document.getElementById('add-unit-input').value;
@@ -484,15 +488,15 @@ function createNewItem() {
     const maxStock = parseInt(document.getElementById('add-max-input').value) || 1000;
     const receivedDate = document.getElementById('add-received-input').value;
     const expiryDate = document.getElementById('add-expiry-input').value;
-    
-    if(!name || !unit) {
+
+    if (!name || !unit) {
         alert("กรุณากรอกชื่อเวชภัณฑ์และหน่วยนับ");
         return;
     }
-    
-    const newItem = {
+
+    const itemData = {
         name,
-        category: category || 'ทั่วไป',
+        category: category || 'อื่นๆ',
         qty, minStock, maxStock, unit,
         imageData: currentItemImage,
         barcode: barcode || Date.now().toString().slice(-8),
@@ -502,14 +506,86 @@ function createNewItem() {
         expiryDate: expiryDate || '-',
         timestamp: firebase.database.ServerValue.TIMESTAMP
     };
-    
-    db.ref("items").push(newItem);
+
+    if (editingItemId) {
+        // Update Existing
+        db.ref("items/" + editingItemId).update(itemData);
+    } else {
+        // Create New
+        db.ref("items").push(itemData);
+    }
+
     toggleModal('add-item-modal', false);
-    
-    // Reset inputs
+    resetModal();
+}
+
+function openEditModal(itemId) {
+    const isLoggedIn = (localStorage.getItem('er_logged_in') === 'true');
+    if (!isLoggedIn) {
+        localStorage.setItem('login_redirect', 'inventory');
+        toggleModal('login-screen', true);
+        return;
+    }
+
+    const item = erItems.find(i => i.id === itemId);
+    if (!item) return;
+
+    editingItemId = itemId;
+    currentItemImage = item.imageData || null;
+
+    // Prefill form
+    document.getElementById('add-name-input').value = item.name || '';
+    document.getElementById('add-category-input').value = item.category || '';
+    document.getElementById('add-unit-input').value = item.unit || '';
+    document.getElementById('add-barcode-input').value = item.barcode || '';
+    document.getElementById('add-location-input').value = item.location || '';
+    document.getElementById('add-qty-input').value = item.qty || 0;
+    document.getElementById('add-min-input').value = item.minStock || 20;
+    document.getElementById('add-max-input').value = item.maxStock || 1000;
+    document.getElementById('add-received-input').value = item.receivedDate || '';
+    document.getElementById('add-expiry-input').value = item.expiryDate || '';
+
+    // Image Preview
+    const preview = document.getElementById('image-preview');
+    const placeholder = document.getElementById('image-placeholder');
+    if (item.imageData) {
+        preview.src = item.imageData;
+        preview.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+    } else {
+        preview.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+    }
+
+    // Update Modal Title & Button
+    document.getElementById('modal-title').innerText = "แก้ไขข้อมูลเวชภัณฑ์";
+    document.getElementById('modal-submit-btn').innerText = "บันทึกการแก้ไข";
+
+    toggleModal('add-item-modal', true);
+}
+
+function resetModal() {
+    editingItemId = null;
     currentItemImage = null;
+
+    // Clear inputs
+    const inputs = document.querySelectorAll('#add-item-modal input');
+    inputs.forEach(i => {
+        if (i.type === 'number') i.value = (i.id === 'add-min-input' ? 20 : (i.id === 'add-max-input' ? 1000 : 0));
+        else i.value = '';
+    });
+
+    // Reset Selects
+    const catSelect = document.getElementById('add-category-input');
+    if (catSelect) catSelect.value = 'อื่นๆ';
+
+    const unitSelect = document.getElementById('add-unit-input');
+    if (unitSelect) unitSelect.value = 'ชิ้น';
+
     document.getElementById('image-preview').classList.add('hidden');
     document.getElementById('image-placeholder').classList.remove('hidden');
+    document.getElementById('modal-title').innerText = "ลงทะเบียนเวชภัณฑ์ใหม่";
+    document.getElementById('modal-submit-btn').innerText = "สร้างรายการ 🔥";
 }
 
 // --- Scanner Integration functions ---
@@ -521,24 +597,24 @@ function handleScanSuccessUI(code) {
     document.getElementById('scanner-container').classList.add('hidden');
     const wrapper = document.getElementById('scanner-wrapper');
     if (wrapper) wrapper.classList.add('hidden');
-    
+
     const header = document.getElementById('scanner-header');
     if (header) header.classList.add('hidden');
-    
+
     const pageScanner = document.getElementById('page-scanner');
     if (pageScanner) {
         pageScanner.classList.remove('py-10');
         pageScanner.classList.add('pb-10', 'pt-0');
     }
-    
+
     window.scrollTo({ top: 0, behavior: 'instant' });
-    
+
     const items = getItems();
     const foundItem = items.find(i => i.barcode === code.trim());
-    
+
     const resultDiv = document.getElementById('scan-result');
     resultDiv.classList.remove('hidden');
-    
+
     if (foundItem) {
         currentScannedItem = foundItem;
         document.getElementById('result-name').innerText = foundItem.name;
@@ -550,18 +626,18 @@ function handleScanSuccessUI(code) {
         document.getElementById('result-name').classList.add('text-rose-400');
         document.getElementById('result-code').innerText = `Barcode: ${code}`;
     }
-    
+
     lucide.createIcons();
 }
 
 function processScanAction(type) {
     if (!currentScannedItem) return;
-    
+
     // Quick prompt for quantity
     const qtyStr = prompt(`จำนวนที่ต้องการ${type === 'IN' ? 'รับเข้า' : 'เบิกออก'} (${currentScannedItem.name}):`, "1");
     if (qtyStr !== null) {
         const qtyToProcess = parseInt(qtyStr);
-        if(!isNaN(qtyToProcess) && qtyToProcess > 0) {
+        if (!isNaN(qtyToProcess) && qtyToProcess > 0) {
             const diff = type === 'IN' ? qtyToProcess : -qtyToProcess;
             updateStock(currentScannedItem.id, diff);
             alert(`✅ บันทึกรายการสำเร็จ!`);
@@ -576,20 +652,14 @@ function processScanAction(type) {
 document.addEventListener('DOMContentLoaded', () => {
     initDatabase();
     checkSession();
-    
-    // Bind Add Item Button
-    const createBtn = document.querySelector('#add-item-modal button.bg-blue-600');
-    if(createBtn) {
-        createBtn.onclick = createNewItem;
-    }
-    
+
     // Bind Scanner Action Buttons
     const scanActionBtns = document.querySelectorAll('#scan-result button.group');
-    if(scanActionBtns.length >= 2) {
+    if (scanActionBtns.length >= 2) {
         scanActionBtns[0].onclick = () => processScanAction('IN');
         scanActionBtns[1].onclick = () => processScanAction('OUT');
     }
-    
+
     renderDashboard();
     renderInventory();
     renderTransactions();
@@ -611,7 +681,7 @@ updateThaiDate();
 function showPage(pageId) {
     const isLoggedIn = (localStorage.getItem('er_logged_in') === 'true');
     const publicPages = ['dashboard'];
-    
+
     // Protection: If not public and not logged in, show login modal
     if (!publicPages.includes(pageId) && !isLoggedIn) {
         localStorage.setItem('login_redirect', pageId);
@@ -622,13 +692,13 @@ function showPage(pageId) {
     const pages = ['dashboard', 'inventory', 'scanner', 'settings', 'transactions'];
     pages.forEach(p => {
         const el = document.getElementById('page-' + p);
-        if(el) el.classList.add('hidden');
+        if (el) el.classList.add('hidden');
         const nav = document.getElementById('nav-' + p);
         if (nav) nav.classList.remove('active');
     });
 
     const currPageEl = document.getElementById('page-' + pageId);
-    if(currPageEl) currPageEl.classList.remove('hidden');
+    if (currPageEl) currPageEl.classList.remove('hidden');
     const activeNav = document.getElementById('nav-' + pageId);
     if (activeNav) activeNav.classList.add('active');
 
@@ -641,7 +711,7 @@ function showPage(pageId) {
     };
     Object.values(bottomIcons).forEach(id => {
         const el = document.getElementById(id);
-        if(el) {
+        if (el) {
             el.classList.remove('active');
             el.classList.add('text-slate-500');
         }
@@ -656,11 +726,11 @@ function showPage(pageId) {
     if (pageId !== 'scanner' && html5QrCode && html5QrCode.isScanning) {
         stopScanner();
     }
-    
+
     if (pageId === 'inventory') renderInventory();
     if (pageId === 'dashboard') renderDashboard();
     if (pageId === 'transactions') renderTransactions();
-    
+
     lucide.createIcons();
 }
 
@@ -669,7 +739,7 @@ function toggleModal(modalId, show) {
     if (!modal) return;
     if (show) {
         modal.classList.remove('hidden');
-        if (modalId === 'add-item-modal') {
+        if (modalId === 'add-item-modal' && !editingItemId) {
             const dateInput = document.getElementById('add-receiving-input') || document.getElementById('add-received-input');
             if (dateInput) {
                 const today = new Date().toISOString().split('T')[0];
@@ -678,7 +748,9 @@ function toggleModal(modalId, show) {
         }
     } else {
         modal.classList.add('hidden');
+        if (modalId === 'add-item-modal') resetModal();
     }
+    lucide.createIcons();
 }
 
 // Scanner Logic
@@ -687,7 +759,7 @@ function startScanner() {
     setTimeout(() => {
         document.getElementById('scanner-placeholder').classList.add('hidden');
         document.getElementById('scanner-overlay').classList.remove('opacity-0');
-        
+
         html5QrCode = new Html5Qrcode("reader");
         const config = { fps: 15, qrbox: { width: 300, height: 150 } };
 
@@ -731,13 +803,13 @@ function resetScanner() {
     document.getElementById('scanner-overlay').classList.add('opacity-0');
     const wrapper = document.getElementById('scanner-wrapper');
     if (wrapper) wrapper.classList.remove('hidden');
-    
+
     const pageScanner = document.getElementById('page-scanner');
     if (pageScanner) {
         pageScanner.classList.remove('pb-10', 'pt-0');
         pageScanner.classList.add('py-10');
     }
-    
+
     const header = document.getElementById('scanner-header');
     if (header) header.classList.remove('hidden');
 }
@@ -763,17 +835,17 @@ let modalHtml5QrCode = null;
 
 function startModalScanner() {
     const container = document.getElementById('modal-scanner-container');
-    if(container) container.classList.remove('hidden');
-    
+    if (container) container.classList.remove('hidden');
+
     // Low performance fix: Delay camera start until container is visible
     setTimeout(() => {
         if (modalHtml5QrCode) {
-            modalHtml5QrCode.stop().catch(() => {});
+            modalHtml5QrCode.stop().catch(() => { });
         }
-        
+
         modalHtml5QrCode = new Html5Qrcode("modal-reader");
-        const config = { 
-            fps: 15, 
+        const config = {
+            fps: 15,
             qrbox: (viewWidth, viewHeight) => {
                 const width = viewWidth * 0.8;
                 const height = viewHeight * 0.4;
@@ -819,11 +891,11 @@ function stopModalScanner() {
         modalHtml5QrCode.stop().then(() => {
             modalHtml5QrCode = null;
             const container = document.getElementById('modal-scanner-container');
-            if(container) container.classList.add('hidden');
+            if (container) container.classList.add('hidden');
         }).catch(err => console.log(err));
     } else {
         const container = document.getElementById('modal-scanner-container');
-        if(container) container.classList.add('hidden');
+        if (container) container.classList.add('hidden');
     }
 }
 
@@ -832,20 +904,20 @@ function updateDatalists() {
     const items = getItems();
     const catFreq = {};
     const unitFreq = {};
-    
+
     items.forEach(item => {
-        if(item.category) catFreq[item.category] = (catFreq[item.category] || 0) + 1;
-        if(item.unit) unitFreq[item.unit] = (unitFreq[item.unit] || 0) + 1;
+        if (item.category) catFreq[item.category] = (catFreq[item.category] || 0) + 1;
+        if (item.unit) unitFreq[item.unit] = (unitFreq[item.unit] || 0) + 1;
     });
-    
-    const catSorted = Object.keys(catFreq).sort((a,b) => catFreq[b] - catFreq[a]);
-    const unitSorted = Object.keys(unitFreq).sort((a,b) => unitFreq[b] - unitFreq[a]);
-    
+
+    const catSorted = Object.keys(catFreq).sort((a, b) => catFreq[b] - catFreq[a]);
+    const unitSorted = Object.keys(unitFreq).sort((a, b) => unitFreq[b] - unitFreq[a]);
+
     const catDatalist = document.getElementById('category-list');
-    if(catDatalist) {
+    if (catDatalist) {
         catDatalist.innerHTML = '';
-        if(catSorted.length === 0) {
-           catSorted.push('Medicine', 'Consumable', 'Equipment');
+        if (catSorted.length === 0) {
+            catSorted.push('ยา', 'อุปกรณ์', 'วัสดุสิ้นเปลือง', 'อื่นๆ');
         }
         catSorted.forEach(c => {
             const opt = document.createElement('option');
@@ -853,12 +925,12 @@ function updateDatalists() {
             catDatalist.appendChild(opt);
         });
     }
-    
+
     const unitDatalist = document.getElementById('unit-list');
-    if(unitDatalist) {
+    if (unitDatalist) {
         unitDatalist.innerHTML = '';
-        if(unitSorted.length === 0) {
-           unitSorted.push('เม็ด', 'ขวด', 'หลอด', 'ชิ้น');
+        if (unitSorted.length === 0) {
+            unitSorted.push('เม็ด', 'ขวด', 'หลอด', 'ชิ้น');
         }
         unitSorted.forEach(u => {
             const opt = document.createElement('option');
@@ -870,11 +942,11 @@ function updateDatalists() {
 
 function exportToPDF() {
     const items = getItems();
-    const dateStr = new Date().toLocaleDateString('th-TH', { 
-        year: 'numeric', month: 'long', day: 'numeric', 
-        hour: '2-digit', minute: '2-digit' 
+    const dateStr = new Date().toLocaleDateString('th-TH', {
+        year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
     });
-    
+
     // Create a temporary container for PDF content
     const element = document.createElement('div');
     element.className = "p-10 bg-white font-sans text-slate-800";
